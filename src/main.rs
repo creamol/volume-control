@@ -13,36 +13,32 @@ fn main() {
     unsafe {
         let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
 
-        let enumerator: IMMDeviceEnumerator =
-            match CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL) {
-                Ok(e) => e,
-                Err(e) => { eprintln!("Error: {e}"); return; }
-            };
+        for _ in 0..6 {
+            let enumerator: IMMDeviceEnumerator =
+                match CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL) {
+                    Ok(e) => e,
+                    Err(_) => {
+                        std::thread::sleep(std::time::Duration::from_secs(5));
+                        continue;
+                    }
+                };
 
-        let device = match enumerator.GetDefaultAudioEndpoint(eRender, eConsole) {
-            Ok(d) => d,
-            Err(e) => { eprintln!("Error: {e}"); return; }
-        };
-
-        let volume: IAudioEndpointVolume = match device.Activate(CLSCTX_ALL, None) {
-            Ok(v) => v,
-            Err(e) => { eprintln!("Error: {e}"); return; }
-        };
-
-        let current_volume: f32 = match volume.GetMasterVolumeLevelScalar() {
-            Ok(v) => v,
-            Err(e) => { eprintln!("Error: {e}"); return; }
-        };
-
-        if (current_volume - 1.0_f32).abs() < 0.001 {
-            if let Err(e) = volume.SetMasterVolumeLevelScalar(0.16, &GUID::zeroed()) {
-                eprintln!("Error: {e}"); return;
-            }
-            if let Ok(muted) = volume.GetMute() {
-                if bool::from(muted) {
-                    let _ = volume.SetMute(false, &GUID::zeroed());
+            if let Ok(device) = enumerator.GetDefaultAudioEndpoint(eRender, eConsole) {
+                if let Ok(volume) = device.Activate::<IAudioEndpointVolume>(CLSCTX_ALL, None) {
+                    if let Ok(current_volume) = volume.GetMasterVolumeLevelScalar() {
+                        if (current_volume - 1.0_f32).abs() < 0.001 {
+                            let _ = volume.SetMasterVolumeLevelScalar(0.16, &GUID::zeroed());
+                            if let Ok(muted) = volume.GetMute() {
+                                if bool::from(muted) {
+                                    let _ = volume.SetMute(false, &GUID::zeroed());
+                                }
+                            }
+                        }
+                    }
                 }
             }
+
+            std::thread::sleep(std::time::Duration::from_secs(5));
         }
     }
 }
